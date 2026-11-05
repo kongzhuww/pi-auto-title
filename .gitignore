@@ -1,0 +1,10 @@
+node_modules/
+coverage/
+*.tgz
+.env
+.env.*
+auto-title.json
+auth.json
+models.json
+settings.json
+*.jsonl
