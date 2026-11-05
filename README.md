@@ -42,13 +42,19 @@ pi install .
 
 不需要为运行扩展执行 `npm install`；Pi 提供 SDK 并加载 TypeScript。不要同时用多个来源安装同一扩展。
 
-## 唯一命令
+## 配置与命令
+
+运行命令打开模型选择面板：
 
 ```text
-/auto-title model
+/auto-title
 ```
+*(或 `/auto-title model`)*
 
-使用 Pi 原生选择器，从已配置认证的聊天模型中选择专用标题模型。支持 Esc 取消。选择 `Disabled (no title requests)` 可关闭自动标题。
+### 交互说明
+- **即时模糊搜索**：进入面板后直接打字（例如输入 `gemini`、`flash` 或 `antigravity`）即可快速过滤出对应模型；
+- **键盘导航**：按 `↑`/`↓`（或 `j`/`k`）移动选中项，按 `Enter` 确认保存，按 `Esc` 退出；
+- **随时停用**：在列表中选择 `Disabled (no title requests)` 即可关闭自动标题功能。
 
 - **默认关闭**：未选择模型之前不发送标题请求，也不自动退回主模型。
 - 独立使用选中的 provider/model ID，**不会改变主对话模型**。
