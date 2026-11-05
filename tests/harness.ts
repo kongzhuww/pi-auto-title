@@ -75,6 +75,7 @@ export function harness(options: {
     ui: {
       notify: (message: string) => notifications.push(message),
       select: async () => picker ? picker() : selection,
+      custom: async () => picker ? picker() : selection,
     },
   } as unknown as ExtensionCommandContext;
 

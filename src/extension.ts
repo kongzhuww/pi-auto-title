@@ -190,7 +190,7 @@ export function registerAutoTitle(pi: ExtensionAPI, config: ConfigStore, options
     getArgumentCompletions: (prefix) => "model".startsWith(prefix)
       ? [{ value: "model", label: "model", description: "Choose the dedicated title model" }] : null,
     handler: async (args, ctx) => {
-      if (args.trim() !== "model") {
+      if (args.trim() && args.trim() !== "model") {
         notify(ctx, "Usage: /auto-title model");
         return;
       }
@@ -204,11 +204,101 @@ export function registerAutoTitle(pi: ExtensionAPI, config: ConfigStore, options
         const disabled = "Disabled (no title requests)";
         const labels = models.map((model) => model.provider + "/" + model.id);
         const selected = saved.model ? saved.model.provider + "/" + saved.model.modelId : "disabled";
-        // Use Pi's native inline selector, not a custom overlay/backdrop.
-        const choice = await ctx.ui.select(
-          `Title model: ${selected}. Each title sends bounded first-turn text and uses extra quota.`,
-          [disabled, ...labels],
-        );
+
+        let choice: string | undefined;
+        if (ctx.mode === "tui") {
+          const { Container, Input, SelectList, Spacer, Text, fuzzyFilter, getKeybindings } =
+            await import("@earendil-works/pi-tui");
+          const { DynamicBorder, getSelectListTheme } =
+            await import("@earendil-works/pi-coding-agent");
+
+          const allItems = [
+            { value: disabled, label: disabled, description: "Do not send background title requests" },
+            ...models.map((m) => ({
+              value: m.provider + "/" + m.id,
+              label: m.provider + "/" + m.id,
+              description: m.name ? m.name : undefined,
+            })),
+          ];
+
+          choice = await ctx.ui.custom<string | undefined>((_tui, theme, _keybindings, done) => {
+            const container = new Container();
+            container.addChild(new DynamicBorder());
+            container.addChild(new Spacer(1));
+            container.addChild(new Text(theme.bold(theme.fg("accent", "Choose Title Model")), 1, 0));
+            container.addChild(new Text(theme.fg("muted", `Current: ${selected}. Type to filter, ↑/↓ to navigate, Enter to select, Esc to cancel.`), 1, 0));
+            container.addChild(new Spacer(1));
+
+            const searchInput = new Input();
+            container.addChild(searchInput);
+            container.addChild(new Spacer(1));
+
+            let currentItems = allItems;
+            const buildList = (items: typeof allItems, preselectVal?: string) => {
+              const list = new SelectList(
+                items,
+                Math.min(items.length, 10),
+                getSelectListTheme(),
+                { minPrimaryColumnWidth: 20, maxPrimaryColumnWidth: 46 }
+              );
+              const idx = items.findIndex((it) => it.value === preselectVal);
+              if (idx !== -1) list.setSelectedIndex(idx);
+              list.onSelect = (item) => done(item.value);
+              list.onCancel = () => done(undefined);
+              return list;
+            };
+
+            let selectList = buildList(allItems, saved.model ? saved.model.provider + "/" + saved.model.modelId : disabled);
+            let selectListIndex = container.children.length;
+            container.addChild(selectList);
+
+            container.addChild(new Spacer(1));
+            container.addChild(new Text(theme.fg("dim", "  Enter to confirm · Esc to cancel"), 1, 0));
+            container.addChild(new DynamicBorder());
+
+            const applyFilter = (q: string) => {
+              currentItems = q.trim()
+                ? fuzzyFilter(allItems, q.trim(), (it) => `${it.label} ${it.description ?? ""}`)
+                : allItems;
+              const newList = buildList(currentItems, currentItems[0]?.value);
+              container.children[selectListIndex] = newList;
+              selectList = newList;
+            };
+
+            searchInput.onSubmit = () => {
+              const selectedItem = selectList.getSelectedItem();
+              if (selectedItem) done(selectedItem.value);
+            };
+
+            return {
+              render: (width: number) => container.render(width),
+              invalidate: () => container.invalidate(),
+              handleInput: (data: string) => {
+                const kb = getKeybindings();
+                const isNav =
+                  kb.matches(data, "tui.select.up") ||
+                  kb.matches(data, "tui.select.down") ||
+                  kb.matches(data, "tui.select.pageUp") ||
+                  kb.matches(data, "tui.select.pageDown") ||
+                  kb.matches(data, "tui.select.confirm") ||
+                  kb.matches(data, "tui.select.cancel");
+                if (isNav) {
+                  selectList.handleInput(data);
+                } else {
+                  searchInput.handleInput(data);
+                  applyFilter(searchInput.getValue());
+                }
+              },
+            };
+          });
+        } else {
+          // Fallback for non-tui mode (e.g. RPC)
+          choice = await ctx.ui.select(
+            `Title model: ${selected}. Each title sends bounded first-turn text and uses extra quota.`,
+            [disabled, ...labels],
+          );
+        }
+
         if (!choice || current !== state || !state.active) return;
         const model = models[labels.indexOf(choice)];
         if (choice !== disabled && !model) return;
